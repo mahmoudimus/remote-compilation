@@ -1,8 +1,11 @@
 // treeMachine.ts
-import * as vscode from 'vscode';
-import * as path from 'path';
-import { Client } from 'ssh2';
 import ansiColors from 'ansi-colors';
+import * as fs from 'fs';
+import * as path from 'path';
+import { Configuration } from 'ssh-config';
+import { Client, utils } from 'ssh2';
+import * as vscode from 'vscode';
+import { getSshConfigHostInfos, getSshConfiguration } from './sshtools';
 
 function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -262,7 +265,7 @@ export class MachineItem extends vscode.TreeItem {
         this.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
         console.log("MachineItem created: ", this.label);
     }
-
+    
     private async connect() {
         const showError = (err: any) => {
             if (this.channel) {
@@ -281,19 +284,85 @@ export class MachineItem extends vscode.TreeItem {
             });
             this.status = 'offline';
             this.refresh();
-            return;
         };
+
+        // Construct default connection options:
+        const homeDir = process.env.HOME ?? process.env.USERPROFILE;
+        
+        let connectionOptions: any = {
+            host: this.ip,
+            port: this.port ?? 22,
+            username: this.user,
+            password: this.password, // fallback if no key is used
+            timeout: vscode.workspace.getConfiguration("remote-compilation").get("connectionTimeout", 5) * 1000,
+        };
+
+        // Try to load and parse ~/.ssh/config to override defaults
+        const sshConfigHostInfos = await getSshConfigHostInfos();
+        if (sshConfigHostInfos && this.ip) {
+            const sshConfigHostInfo = sshConfigHostInfos.get(this.ip);
+            if (sshConfigHostInfo) {
+                const config: Configuration = await getSshConfiguration(sshConfigHostInfo.file);
+                const resolvedConfig = config.compute(this.ip);
+                
+                connectionOptions.host = resolvedConfig.HostName;
+                connectionOptions.port = resolvedConfig.Port;
+                connectionOptions.username = resolvedConfig.User;
+                if (resolvedConfig.IdentityFile) {
+                    // Expand ~ if present in the IdentityFile path
+                    let identityFile = resolvedConfig.IdentityFile[0];
+                    identityFile = identityFile.replace(/^~\//, `${homeDir}/`);
+                    if (fs.existsSync(identityFile)) {
+                        // Read the private key data from file
+                        const keyData = fs.readFileSync(identityFile);
+                        // Attempt to parse the key without a passphrase
+                        const parsedKey = utils.parseKey(keyData);
+                        if (parsedKey instanceof Error && /encrypted/i.test(parsedKey.message)) {
+                            const passphrase = await vscode.window.showInputBox({
+                                prompt: `Enter passphrase for private key: ${identityFile}`,
+                                password: true,
+                            });
+                            if (!passphrase) {
+                                vscode.window.showErrorMessage(`Passphrase is required for the encrypted private key`);
+                                showError(new Error("Private key passphrase not provided"));
+                                return;
+                            }
+                            // Try parsing the key again with the provided passphrase
+                            const parsedKeyWithPassphrase = utils.parseKey(keyData, passphrase);
+                            if (parsedKeyWithPassphrase instanceof Error) {
+                                vscode.window.showErrorMessage(`Invalid passphrase for private key: ${identityFile}`);
+                                showError(new Error("Invalid private key passphrase provided"));
+                                return;
+                            }
+                            connectionOptions.passphrase = passphrase;
+                        } else if (parsedKey instanceof Error) {
+                            // Some other error occurred while parsing the key
+                            vscode.window.showErrorMessage(`Failed to parse private key: ${parsedKey.message}`);
+                            showError(parsedKey);
+                            return;
+                        }
+                        connectionOptions.privateKey = keyData;
+                        // Optionally remove the password when using a private key
+                        delete connectionOptions.password;
+                    }
+                }
+                if (connectionOptions.ForwardAgent && connectionOptions.ForwardAgent.toLowerCase() === 'yes') {
+                    connectionOptions.agent = process.env.SSH_AUTH_SOCK;
+                    connectionOptions.agentForward = true;
+                }
+            }
+        }
 
         this.status = 'connecting';
         this.refresh();
-        console.log(`Connecting to ${this.label}, at ${this.ip}, port ${this.port}`);
+        console.log(`Connecting to ${this.label} using host ${connectionOptions.host}, port ${connectionOptions.port}`);
         this.ssh_client = new Client();
         this.ssh_client.on('ready', () => {
             this.channel = vscode.window.createOutputChannel(`${this.label}`);
             this.channel.show();
             console.log(`Client ${this.label}:: ready`);
             this.ssh_client?.shell((err: any, stream: any) => {
-                if (err) {showError(err);}
+                if (err) { showError(err); }
                 this.ssh_shell = stream;
                 stream.on('close', () => {
                     this.channel?.append(`\nConnection closed\n`);
@@ -302,24 +371,17 @@ export class MachineItem extends vscode.TreeItem {
                     console.log(`Stream ${this.label}:: close`);
                     this.ssh_client?.end();
                 }).on('data', (data: any) => {
-                    //console.log('OUTPUT: ' + data);
                     if (this.channel) {
                         const uncoloredData = ansiColors.stripColor(data.toString());
-                        //console.log('Uncolored data:', uncoloredData);
                         this.channel.append(uncoloredData);
                     }
                 });
             });
             this.status = 'focused';
             this.refresh();
-        }).connect({
-            host: this.ip,
-            port: this.port || 22,
-            username: this.user,
-            password: this.password,
-            timeout: vscode.workspace.getConfiguration("remote-compilation").get("connectionTimeout", 5)*1000,
-        }).on('error', (err) => {
-            if (err.message.startsWith('Channel has been closed')) {return;}
+        }).connect(connectionOptions)
+        .on('error', (err) => {
+            if (err.message.startsWith('Channel has been closed')) { return; }
             showError(err);
         }).on('close', () => {
             if (this.status === 'connecting') {
@@ -328,7 +390,6 @@ export class MachineItem extends vscode.TreeItem {
                 console.log('Connection closed');
             }
         });
-        return;
     }
 
     async disconnect() {

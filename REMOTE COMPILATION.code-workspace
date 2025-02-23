@@ -15,6 +15,11 @@
                 "name": "Publish",
                 "command": "vsce publish",
                 "group": "local"
+            },
+            {
+                "name": "Hello Remote",
+                "command": "echo 'Hello from remote terminal!'",
+                "group": "remote"
             }
         ],
         "markdown.extension.toc.omittedFromToc": {

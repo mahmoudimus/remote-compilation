@@ -1,9 +1,11 @@
-import * as vscode from 'vscode';
-import { TreeMachine, MachineItem, MachinePathItem} from './treeMachine';
-import { register } from 'module';
-import {TreeMacro, MacroItem, MacroList, MacroLocal, MacroBuild, MacroRemote, MacroVSCode} from './treeMacro';
-import * as path from 'path';
 import getAppDataPath from "appdata-path";
+import { homedir } from "os";
+import * as path from 'path';
+import { join } from "path";
+import * as vscode from 'vscode';
+import { MachineItem, MachinePathItem, TreeMachine } from './treeMachine';
+import { MacroBuild, MacroItem, MacroList, MacroLocal, MacroRemote, MacroVSCode, TreeMacro } from './treeMacro';
+import { Utils } from "./utils";
 
 export function activate(context: vscode.ExtensionContext) {
     const treeMachine = new TreeMachine();
@@ -137,11 +139,38 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {}
 
 
+/**
+ * Returns the path to the VS Code User settings/config folder
+ *
+ * @returns the path to the VS Code user folder
+ */
+export function getVsCodeUserPath(): string {
+  const homeDir = homedir();
+
+  let folder: string;
+
+  switch (process.platform) {
+    case "win32":
+      folder = process.env.APPDATA ?? join(homeDir, "AppData", "Roaming");
+      break;
+    case "darwin":
+      folder = join(homeDir, "Library", "Application Support");
+      break;
+    case "linux":
+      folder = join(homeDir, ".config");
+      break;
+    default:
+      folder = "/var/local";
+  }
+
+  return join(folder, Utils.getEditorName(), "User");
+}
+
 export async function openSettings(configType: string) {
     let settingsPath: string;
     if (configType === 'user') {
         //path is user/APPDATA/Roaming/Code/User/settings.json
-        settingsPath = path.join(getAppDataPath("Code"), 'User', 'settings.json');
+        settingsPath = path.join(getAppDataPath(Utils.getEditorName()), 'User', 'settings.json');
     } else if (configType === 'workspace') {
         const workspaceFile = vscode.workspace.workspaceFile;
         if (!workspaceFile) {
@@ -156,7 +185,7 @@ export async function openSettings(configType: string) {
 
     try {
         const document = await vscode.workspace.openTextDocument(settingsPath);
-        const editor = await vscode.window.showTextDocument(document);
+        await vscode.window.showTextDocument(document);
     } catch (error) {
         vscode.window.showErrorMessage(`Failed to open settings: ${error}`);
     }
