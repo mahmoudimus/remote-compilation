@@ -1,4 +1,4 @@
-# ![logo-extension-32.png](./ressources/images/icon/logo-extension-32.png) Remote Compilation & Macros
+# ![logo-extension-32.png](./resources/images/icon/logo-extension-32.png) Remote Compilation & Macros
 
 Remote Compilation is a VSCode extension I developed during my internship at **IN-CORE Systèmes**. Its objective is to reproduce part of NetBeans' functionalities we were using to compile C/C++ over a virtual machine. The extension aims to easily share compilation configs and macros among collaborators based on a workspace, but keep the machine configs proper to a user.
 
@@ -60,18 +60,18 @@ Find below some gif I hope will help you to use my extension.
 ### + About machines
 
 >#### Creating a machine
->![creating_and_editing_vm.gif](./ressources/images/readme/creating_and_editing_vm.gif)
+>![creating_and_editing_vm.gif](./resources/images/readme/creating_and_editing_vm.gif)
 
 >#### Connecting to a Machine
->![connecting_to_vm.gif](./ressources/images/readme/connecting_to_vm.gif)
+>![connecting_to_vm.gif](./resources/images/readme/connecting_to_vm.gif)
 
 ### + About Macros
 
 >#### Creating a local/remote macro
->![creating_and_editing_local_macro.gif](./ressources/images/readme/creating_and_editing_local_macro.gif)
+>![creating_and_editing_local_macro.gif](./resources/images/readme/creating_and_editing_local_macro.gif)
 
 >#### Creating a build macro
->![creating_and_editing_build_macro.gif](./ressources/images/readme/creating_and_editing_build_macro.gif)
+>![creating_and_editing_build_macro.gif](./resources/images/readme/creating_and_editing_build_macro.gif)
 
 <!--
 ## Known Issues
