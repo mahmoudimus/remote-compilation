@@ -169,7 +169,6 @@ export function getVsCodeUserPath(): string {
 export async function openSettings(configType: string) {
     let settingsPath: string;
     if (configType === 'user') {
-        //path is user/APPDATA/Roaming/Code/User/settings.json
         settingsPath = path.join(getAppDataPath(Utils.getEditorName()), 'User', 'settings.json');
     } else if (configType === 'workspace') {
         const workspaceFile = vscode.workspace.workspaceFile;

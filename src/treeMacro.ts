@@ -1,9 +1,9 @@
+import { exec } from 'child_process';
 import { log } from 'console';
 import path from 'path';
 import * as vscode from 'vscode';
-import { TreeMachine, MachineItem, MachinePathItem} from './treeMachine';
 import { openSettings } from './extension';
-import { exec } from 'child_process';
+import { MachineItem, TreeMachine } from './treeMachine';
 
 
 export class TreeMacro implements vscode.TreeDataProvider<vscode.TreeItem> {
@@ -208,8 +208,8 @@ export class MacroList extends vscode.TreeItem {
     localExecute(command: string) {
         if (process.platform === "win32") {
             this.localExecuteWin(command);
-        } else if (process.platform === "linux") {
-            this.localExecuteLinux(command);
+        } else if (process.platform === "linux" || process.platform === "darwin") {
+            this.localExecuteUnixish(command);
         } else {
             vscode.window.showErrorMessage("Platform not supported");
         }
@@ -245,7 +245,7 @@ export class MacroList extends vscode.TreeItem {
         });
     }
 
-    localExecuteLinux(command: string) {
+    localExecuteUnixish(command: string) {
         const workspace = vscode.workspace.workspaceFolders?.[0];
         const workspace_path = workspace?.uri.fsPath;
         const command_path = `cd "${workspace_path}";${command}`;
